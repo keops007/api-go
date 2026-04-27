@@ -4,18 +4,28 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go-api/config"
-	"go-api/models"
+	"go-api/services"
 )
 
-func GetShoppingItems(c *gin.Context) {
+type ShoppingHandler struct {
+	shoppingService services.ShoppingService
+}
+
+func NewShoppingHandler(shoppingService services.ShoppingService) *ShoppingHandler {
+	return &ShoppingHandler{shoppingService: shoppingService}
+}
+
+func (h *ShoppingHandler) GetItems(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
-	var items []models.ShoppingItem
-	config.DB.Where("user_id = ?", userID).Order("done asc, created_at desc").Find(&items)
+	items, err := h.shoppingService.GetItems(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "eroare la incarcare"})
+		return
+	}
 	c.JSON(http.StatusOK, items)
 }
 
-func AddShoppingItem(c *gin.Context) {
+func (h *ShoppingHandler) AddItem(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
 
 	var input struct {
@@ -26,30 +36,29 @@ func AddShoppingItem(c *gin.Context) {
 		return
 	}
 
-	item := models.ShoppingItem{UserID: userID, Name: input.Name}
-	config.DB.Create(&item)
+	item, err := h.shoppingService.AddItem(userID, input.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "eroare la adaugare"})
+		return
+	}
 	c.JSON(http.StatusCreated, item)
 }
 
-func ToggleShoppingItem(c *gin.Context) {
+func (h *ShoppingHandler) ToggleItem(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
 
-	var item models.ShoppingItem
-	if err := config.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).First(&item).Error; err != nil {
+	item, err := h.shoppingService.ToggleItem(c.Param("id"), userID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "item negasit"})
 		return
 	}
-
-	config.DB.Model(&item).Update("done", !item.Done)
-	item.Done = !item.Done
 	c.JSON(http.StatusOK, item)
 }
 
-func DeleteShoppingItem(c *gin.Context) {
+func (h *ShoppingHandler) DeleteItem(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
 
-	result := config.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).Delete(&models.ShoppingItem{})
-	if result.RowsAffected == 0 {
+	if err := h.shoppingService.DeleteItem(c.Param("id"), userID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "item negasit"})
 		return
 	}

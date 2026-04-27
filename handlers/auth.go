@@ -2,141 +2,55 @@ package handlers
 
 import (
 	"net/http"
-	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-
-	"go-api/config"
-	"go-api/models"
+	"go-api/services"
 )
 
-// Struct used for login/register requests
-type AuthInput struct {
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=6"`
+type AuthHandler struct {
+	authService services.AuthService
 }
 
-// =======================
-// REGISTER HANDLER
-// =======================
-func Register(c *gin.Context) {
-    var input AuthInput
-
-    // Validate incoming JSON
-    if err := c.ShouldBindJSON(&input); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": "invalid input",
-        })
-        return
-    }
-
-    // Check if user already exists
-    var existingUser models.User
-    config.DB.Where("email = ?", input.Email).First(&existingUser)
-
-    if existingUser.ID != 0 {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": "user already exists",
-        })
-        return
-    }
-
-    // Hash the password using bcrypt
-    hashedPassword, err := bcrypt.GenerateFromPassword(
-        []byte(input.Password),
-        bcrypt.DefaultCost,
-    )
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error": "failed to hash password",
-        })
-        return
-    }
-
-    // Create user object
-    user := models.User{
-        Email:    input.Email,
-        Password: string(hashedPassword),
-    }
-
-    // Save user to database
-    result := config.DB.Create(&user)
-    if result.Error != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error": "failed to create user",
-        })
-        return
-    }
-
-    // Return created user (without password ideally in real apps)
-    c.JSON(http.StatusCreated, gin.H{
-        "message": "user registered successfully",
-    })
+func NewAuthHandler(authService services.AuthService) *AuthHandler {
+	return &AuthHandler{authService: authService}
 }
 
-// =======================
-// LOGIN HANDLER
-// =======================
-func Login(c *gin.Context) {
-    var input AuthInput
+type authInput struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
 
-    // Validate request body
-    if err := c.ShouldBindJSON(&input); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": "invalid input",
-        })
-        return
-    }
+func (h *AuthHandler) Register(c *gin.Context) {
+	var input authInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+		return
+	}
 
-    // Find user by email
-    var user models.User
-    result := config.DB.Where("email = ?", input.Email).First(&user)
+	if err := h.authService.Register(input.Email, input.Password); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user already exists" {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
 
-    if result.Error != nil {
-        // Do not reveal whether email exists or not (security best practice)
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "error": "invalid credentials",
-        })
-        return
-    }
+	c.JSON(http.StatusCreated, gin.H{"message": "user registered successfully"})
+}
 
-    // Compare hashed password with provided password
-    err := bcrypt.CompareHashAndPassword(
-        []byte(user.Password),
-        []byte(input.Password),
-    )
+func (h *AuthHandler) Login(c *gin.Context) {
+	var input authInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+		return
+	}
 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "error": "invalid credentials",
-        })
-        return
-    }
+	token, err := h.authService.Login(input.Email, input.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
 
-    // Get JWT secret from environment
-    jwtSecret := os.Getenv("JWT_SECRET")
-
-    // Create JWT token with claims
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-        "user_id": user.ID,
-        "email":   user.Email,
-        "exp":     time.Now().Add(24 * time.Hour).Unix(), // Token expires in 24h
-    })
-
-    // Sign the token
-    tokenString, err := token.SignedString([]byte(jwtSecret))
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error": "could not generate token",
-        })
-        return
-    }
-
-    // Return token to client
-    c.JSON(http.StatusOK, gin.H{
-        "token": tokenString,
-    })
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }
