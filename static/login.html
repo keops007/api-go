@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autentificare</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h1 { margin-bottom: 1.5rem; font-size: 1.5rem; color: #1a1a1a; }
+        label { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #555; }
+        input { width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; outline: none; }
+        input:focus { border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,0.15); }
+        button { width: 100%; padding: 0.625rem; background: #4f46e5; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+        button:hover { background: #4338ca; }
+        .msg { margin-top: 1rem; padding: 0.75rem; border-radius: 6px; font-size: 0.875rem; }
+        .msg.error { background: #fee2e2; color: #dc2626; }
+        .msg.success { background: #dcfce7; color: #16a34a; }
+        .link { margin-top: 1rem; text-align: center; font-size: 0.875rem; color: #555; }
+        .link a { color: #4f46e5; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Autentificare</h1>
+        <form id="form">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="email@exemplu.com" required />
+            <label>Parola</label>
+            <input type="password" id="password" placeholder="Parola ta" required />
+            <button type="submit">Intra in cont</button>
+        </form>
+        <div id="msg" style="display:none" class="msg"></div>
+        <div class="link">Nu ai cont? <a href="/register">Inregistreaza-te</a></div>
+    </div>
+    <script>
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('msg');
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+                const data = await res.json();
+                msg.style.display = 'block';
+                if (res.ok) {
+                    localStorage.setItem('token', data.token);
+                    msg.className = 'msg success';
+                    msg.textContent = 'Autentificat! Redirectionare...';
+                    setTimeout(() => window.location.href = '/profile', 1000);
+                } else {
+                    msg.className = 'msg error';
+                    msg.textContent = data.error || 'Credentiale invalide';
+                }
+            } catch {
+                msg.style.display = 'block';
+                msg.className = 'msg error';
+                msg.textContent = 'Nu ma pot conecta la server';
+            }
+        });
+    </script>
+</body>
+</html>

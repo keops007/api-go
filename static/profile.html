@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .avatar-wrap { position: relative; display: inline-block; margin-bottom: 1.25rem; cursor: pointer; }
+        .avatar-wrap:hover .overlay { opacity: 1; }
+        .avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #4f46e5; display: block; }
+        .overlay { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.45); color: white; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
+        h1 { font-size: 1.25rem; color: #1a1a1a; margin-bottom: 0.25rem; }
+        .email { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+        .msg { padding: 0.6rem 0.75rem; border-radius: 6px; font-size: 0.8rem; margin-bottom: 1rem; display: none; }
+        .msg.error { background: #fee2e2; color: #dc2626; display: block; }
+        .msg.success { background: #dcfce7; color: #16a34a; display: block; }
+        button { width: 100%; padding: 0.625rem; background: #dc2626; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+        button:hover { background: #b91c1c; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="avatar-wrap" onclick="document.getElementById('fileInput').click()">
+            <img id="avatarImg" class="avatar" src="" alt="Avatar" />
+            <div class="overlay">Schimba poza</div>
+        </div>
+        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.webp" style="display:none" />
+
+        <h1 id="emailDisplay">...</h1>
+        <p class="email">Apasa pe poza pentru a o schimba</p>
+        <div id="msg" class="msg"></div>
+        <button onclick="logout()">Deconectare</button>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = '/login'; }
+
+        const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="50" fill="%23e5e7eb"/%3E%3Ccircle cx="50" cy="38" r="18" fill="%239ca3af"/%3E%3Cellipse cx="50" cy="85" rx="28" ry="20" fill="%239ca3af"/%3E%3C/svg%3E';
+
+        async function loadProfile() {
+            const res = await fetch('/api/profile', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
+            const data = await res.json();
+            document.getElementById('emailDisplay').textContent = data.email;
+            document.getElementById('avatarImg').src = data.avatar || PLACEHOLDER;
+        }
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const msg = document.getElementById('msg');
+            msg.className = 'msg';
+
+            const form = new FormData();
+            form.append('avatar', file);
+
+            const res = await fetch('/api/profile/avatar', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token },
+                body: form
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('avatarImg').src = data.avatar + '?t=' + Date.now();
+                msg.className = 'msg success';
+                msg.textContent = 'Poza actualizata!';
+            } else {
+                msg.className = 'msg error';
+                msg.textContent = data.error || 'Eroare la upload';
+            }
+            setTimeout(() => msg.className = 'msg', 3000);
+        });
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        }
+
+        loadProfile();
+    </script>
+</body>
+</html>
