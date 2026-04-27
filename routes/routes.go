@@ -9,8 +9,10 @@ import (
 func SetupRoutes(r *gin.Engine) {
 	// Fisiere statice
 	r.Static("/uploads", "./uploads")
+	r.StaticFile("/logo.png", "./logo.png")
 
 	// Pagini HTML
+	r.GET("/", func(c *gin.Context) { c.File("./static/index.html") })
 	r.GET("/register", func(c *gin.Context) { c.File("./static/register.html") })
 	r.GET("/login", func(c *gin.Context) { c.File("./static/login.html") })
 	r.GET("/profile", func(c *gin.Context) { c.File("./static/profile.html") })

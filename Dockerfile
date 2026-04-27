@@ -25,9 +25,10 @@ WORKDIR /app
 # Install CA certificates (needed for HTTPS calls if any)
 RUN apk --no-cache add ca-certificates
 
-# Copy binary and static files from builder
+# Copy binary, static files and logo from builder
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
+COPY --from=builder /app/logo.png .
 
 # Expose port
 EXPOSE 8081
