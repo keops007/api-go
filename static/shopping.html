@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de cumparaturi</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #f0f2f5; min-height: 100vh; padding: 2rem 1rem; }
+        .container { max-width: 480px; margin: 0 auto; }
+        .header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+        .back { color: #4f46e5; text-decoration: none; font-size: 0.875rem; }
+        h1 { font-size: 1.4rem; color: #1a1a1a; flex: 1; }
+        .add-form { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+        .add-form input { flex: 1; padding: 0.625rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; outline: none; }
+        .add-form input:focus { border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,0.15); }
+        .add-form button { padding: 0.625rem 1rem; background: #4f46e5; color: white; border: none; border-radius: 6px; font-size: 1.25rem; cursor: pointer; line-height: 1; }
+        .add-form button:hover { background: #4338ca; }
+        .list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .item { background: white; border-radius: 8px; padding: 0.875rem 1rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+        .item.done { opacity: 0.55; }
+        .item input[type=checkbox] { width: 18px; height: 18px; accent-color: #4f46e5; cursor: pointer; flex-shrink: 0; }
+        .item-name { flex: 1; font-size: 0.95rem; color: #1a1a1a; }
+        .item.done .item-name { text-decoration: line-through; color: #9ca3af; }
+        .del { background: none; border: none; cursor: pointer; color: #d1d5db; font-size: 1.1rem; padding: 0 0.25rem; }
+        .del:hover { color: #dc2626; }
+        .empty { text-align: center; color: #9ca3af; font-size: 0.9rem; padding: 2rem 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a class="back" href="/profile">← Profil</a>
+            <h1>Lista de cumparaturi</h1>
+        </div>
+        <form class="add-form" id="addForm">
+            <input type="text" id="newItem" placeholder="Adauga un produs..." autocomplete="off" />
+            <button type="submit">+</button>
+        </form>
+        <div class="list" id="list"></div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/login';
+
+        const authHeaders = { 'Authorization': 'Bearer ' + token };
+
+        async function load() {
+            const res = await fetch('/api/shopping', { headers: authHeaders });
+            if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
+            const items = await res.json();
+            render(items);
+        }
+
+        function render(items) {
+            const list = document.getElementById('list');
+            if (!items || items.length === 0) {
+                list.innerHTML = '<p class="empty">Lista e goala. Adauga primul produs!</p>';
+                return;
+            }
+            list.innerHTML = items.map(item => `
+                <div class="item ${item.done ? 'done' : ''}" id="item-${item.id}">
+                    <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggle(${item.id})" />
+                    <span class="item-name">${escape(item.name)}</span>
+                    <button class="del" onclick="remove(${item.id})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('addForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('newItem');
+            const name = input.value.trim();
+            if (!name) return;
+            await fetch('/api/shopping', {
+                method: 'POST',
+                headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            input.value = '';
+            load();
+        });
+
+        async function toggle(id) {
+            await fetch(`/api/shopping/${id}/done`, { method: 'PATCH', headers: authHeaders });
+            load();
+        }
+
+        async function remove(id) {
+            await fetch(`/api/shopping/${id}`, { method: 'DELETE', headers: authHeaders });
+            load();
+        }
+
+        function escape(str) {
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        load();
+    </script>
+</body>
+</html>

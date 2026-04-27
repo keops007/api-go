@@ -19,7 +19,7 @@ func main() {
     config.ConnectDB()
 
     // Auto migrate models
-    config.DB.AutoMigrate(&models.User{})
+    config.DB.AutoMigrate(&models.User{}, &models.ShoppingItem{})
 
     r := gin.Default()
 
